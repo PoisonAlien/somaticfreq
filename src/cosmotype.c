@@ -1,3 +1,5 @@
+#include <ctype.h>
+#include <unistd.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -11,38 +13,95 @@ void printrow(FILE *fn,   char *loci, float counts[]);
 void printtail(FILE *fn);
 
 void usage(){
-    fprintf(stderr, "Program: basecounts\n");
-    fprintf(stderr, "A tool to generate nucleotide counts and VAF table from user specific loci or gentotypes\n");
+    fprintf(stderr, "-------------------------------------------------------------------------\n");
+    fprintf(stderr, "cosmotype: A tool to genotype known COSMIC variants from BAM file\n");
     fprintf(stderr, "USAGE:\n");
-    fprintf(stderr, "    gtftools basecounts <loci> <fasta> <bam>...\n");
+    fprintf(stderr, "    cosmotype [OPTIONS] <loci> <bam>\n");
+    fprintf(stderr, "OPTIONS:\n");
+    fprintf(stderr, "    -f  Indexed fasta file. Extracts and adds reference base to the ouput\n");
+    fprintf(stderr, "    -m  Map quality. Default 10\n");
+    fprintf(stderr, "    -o  Output file. Default \"report\"\n");
     fprintf(stderr, "ARGS:\n");
     fprintf(stderr, "    <loci>   A 2 (or more) column tsv file with chr\\tpos\n");
-    fprintf(stderr, "    <fasta>  Indexed fasta file. Extracts and adds reference base to the ouput\n");
-    fprintf(stderr, "    <bam>... One or more BAM files\n");
+    fprintf(stderr, "    <bam>    Indexed BAM file\n");
+    fprintf(stderr, "-------------------------------------------------------------------------\n");
 }
 
-int main(int argc, char *argv[]){
+int main (int argc, char **argv)
+{
+  int m = 10;
+  char *fafile = NULL;
+  char *op = "report";
+  int c;
+  char *bedfile = NULL;
+  char *bam = NULL;
 
-    if(argc < 3){
+  opterr = 0;
+
+  while ((c = getopt (argc, argv, "m:f:o:")) != -1)
+    switch (c)
+      {
+      case 'm':
+        m = atoi(optarg);
+        break;
+      case 'f':
+        fafile = optarg;
+        break;
+      case 'o':
+        op = optarg;
+        break;
+      case '?':
+        if (optopt == 'm'){
+            fprintf (stderr, "Option -%c requires an argument.\n", optopt);
+            usage();
+        }
+          
+        if (optopt == 'f'){
+          usage();
+          fprintf (stderr, "Input fasta file must provided when -%c is specified.\n", optopt); 
+        } else if (isprint (optopt)){
+          fprintf (stderr, "Unknown option `-%c'.\n", optopt);
+          usage();
+        }else{
+            fprintf (stderr, "Unknown option character `\\x%x'.\n", optopt);
+            usage();
+        }
+          
+        return 1;
+      default:
+        abort ();
+      }
+
+  
+    bedfile = argv[optind];
+    if(bedfile == NULL){
         usage();
+        fprintf(stderr, "Missing loci file!\n");
         return 0;
     }
-    
-    //Check if they are BAM files
-    for(int b = 3; b < argc; b++){
-        is_bam(argv[b]);
+    bam = argv[optind+1];
+    if(bam == NULL){
+        usage();
+        fprintf(stderr, "Missing BAM file!\n");
+        return 0;
     }
 
-    FILE *bed_fp;
-    bed_fp = fopen(argv[1], "r");
-    char buff[1000];
-    char *fract = "true";
+    is_bam(bam);
+    printf ("m = %d, fa = %s, ouput = %s, loci = %s, bam = %s\n", m, fafile, op, bedfile, bam);
 
-    faidx_t *fa = fai_load(argv[2]);
+
+    FILE *bed_fp;
+    bed_fp = fopen(bedfile, "r");
+    char buff[1000];
+    char *fract = "true";    
 
     FILE *html_fp;
-    html_fp = fopen("report.html", "w" );
+    html_fp = fopen(strcat(op, ".html"), "w" );
     printhead(html_fp);
+
+    char *seq;
+
+    faidx_t *fa = fai_load(fafile);
 
     while(fgets(buff,1000,bed_fp) != NULL){
         //Remove trailing new line chars
@@ -60,24 +119,29 @@ int main(int argc, char *argv[]){
 
         strcat(loci, chrom); strcat(loci, ":"); strcat(loci, start); strcat(loci, "-"); strcat(loci, start);
         //printf("%s\n", loci);
-        int templen = 100;
-        char *seq = fai_fetch(fa, loci, &templen);
+        
+        if(fa != NULL){
+            int templen = 100;
+            seq = fai_fetch(fa, loci, &templen);
+            printf("%s:%s\t%s", chrom, start, seq);
+            free(seq);
+        }else{
+            printf("%s:%s\tNA", chrom, start);
+        }
         
         target_pos = atoi(start);
-
-        printf("%s:%s\t%s", chrom, start, seq);
-        for(int b = 3; b < argc; b++){
-            char *bamfile = argv[b];
-            extbases(loci, target_pos, bamfile, fract, html_fp);
-        }
+        extbases(loci, target_pos, bam, fract, html_fp);
         printf("\n");
-        free(seq);
+        
+        
     } 
-    fclose(bed_fp);
+    
     printtail(html_fp);
-
+    
+    fclose(bed_fp);
+    fai_destroy(fa);
     fclose(html_fp);
-
+    
     return 0;
 }
 
@@ -232,4 +296,3 @@ void printtail(FILE *fn){
     fprintf(fn, "</body>\n");
     fprintf(fn, "</html>\n");
 }
-
