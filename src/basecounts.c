@@ -14,7 +14,7 @@ void usage(){
     fprintf(stderr, "Program: basecounts\n");
     fprintf(stderr, "A tool to generate nucleotide counts and VAF table from user specific loci or gentotypes\n");
     fprintf(stderr, "USAGE:\n");
-    fprintf(stderr, "    gtftools basecounts <loci> <fasta> <bam>...\n");
+    fprintf(stderr, "    basecounts <loci> <fasta> <bam>...\n");
     fprintf(stderr, "ARGS:\n");
     fprintf(stderr, "    <loci>   A 2 (or more) column tsv file with chr\\tpos\n");
     fprintf(stderr, "    <fasta>  Indexed fasta file. Extracts and adds reference base to the ouput\n");
@@ -63,9 +63,9 @@ int main(int argc, char *argv[]){
         int templen = 100;
         char *seq = fai_fetch(fa, loci, &templen);
         
-        target_pos = atoi(start);
+        target_pos = atoi(start)-1;
 
-        printf("%s:%s\t%s", chrom, start, seq);
+        printf("%s:%s\t%s\t%d\n", chrom, start, seq, target_pos);
         for(int b = 3; b < argc; b++){
             char *bamfile = argv[b];
             extbases(loci, target_pos, bamfile, fract, html_fp);
@@ -134,7 +134,10 @@ void extbases(char *region, int32_t target_pos, char *bam, char *norm, FILE *htm
                     pos_onread = pos_onread + cl;
                 }else if(BAM_CIGAR_STR[cop] == 'I'){
                     pos_onread = pos_onread + cl;
+                }else if(BAM_CIGAR_STR[cop] == 'D'){
+                    pos_onread = pos_onread + cl;
                 }
+                printf("%c\t", BAM_CIGAR_STR[cop]);
                 
 
                 if(pos > target_pos){
@@ -161,9 +164,7 @@ void extbases(char *region, int32_t target_pos, char *bam, char *norm, FILE *htm
                         //     printf("%c", qseq[pos_onread+i]);
                         // }
                         break;
-                    }
-                }else if(pos == target_pos){
-                    if(BAM_CIGAR_STR[cop] == 'D'){
+                    }else if(BAM_CIGAR_STR[cop] == 'D'){
                         nt[5] = nt[5] + 1;
                         // deletion sequence
                         // for(int i = 0; i < cl; i++){
@@ -171,8 +172,9 @@ void extbases(char *region, int32_t target_pos, char *bam, char *norm, FILE *htm
                         // }
                         break;
                     }
-                }                
+                }               
             }
+            printf("\n");
         }    
         if(strcmp(norm, "true")){
             printf("\t%.2f|%.2f|%.2f|%.2f|%.2f|%.2f", nt[0]/tot_reads, nt[1]/tot_reads, nt[2]/tot_reads, nt[3]/tot_reads, nt[4]/tot_reads, nt[5]/tot_reads);               
