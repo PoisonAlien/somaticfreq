@@ -27,6 +27,7 @@ int main(int argc, char *argv[]){
         usage();
         return 0;
     }
+    hts_verbose = 0; //suppresses htslib warnings
     
     //Check if they are BAM files
     for(int b = 3; b < argc; b++){
@@ -65,7 +66,7 @@ int main(int argc, char *argv[]){
         
         target_pos = atoi(start)-1;
 
-        printf("%s:%s\t%s\t%d\n", chrom, start, seq, target_pos);
+        printf("%s:%s\t%s", chrom, start, seq);
         for(int b = 3; b < argc; b++){
             char *bamfile = argv[b];
             extbases(loci, target_pos, bamfile, fract, html_fp);
@@ -137,7 +138,7 @@ void extbases(char *region, int32_t target_pos, char *bam, char *norm, FILE *htm
                 }else if(BAM_CIGAR_STR[cop] == 'D'){
                     pos_onread = pos_onread + cl;
                 }
-                printf("%c\t", BAM_CIGAR_STR[cop]);
+                //printf("%c\t", BAM_CIGAR_STR[cop]);
                 
 
                 if(pos > target_pos){
@@ -174,7 +175,7 @@ void extbases(char *region, int32_t target_pos, char *bam, char *norm, FILE *htm
                     }
                 }               
             }
-            printf("\n");
+            //printf("\n");
         }    
         if(strcmp(norm, "true")){
             printf("\t%.2f|%.2f|%.2f|%.2f|%.2f|%.2f", nt[0]/tot_reads, nt[1]/tot_reads, nt[2]/tot_reads, nt[3]/tot_reads, nt[4]/tot_reads, nt[5]/tot_reads);               
