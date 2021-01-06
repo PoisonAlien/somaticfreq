@@ -11,46 +11,22 @@
 void is_bam(char *fname);
 void printhead(FILE *fn, char *bam_fn);
 void printrow(FILE *fn,  char *chrom, char *start, char *ref, char *alt, char *gene, char *vc, char *pc, char *cosid, float vaf, float counts[]);
-void printargtbl(FILE *fn, int mapq, char *bam, int tot_var, int som_vars, float vaf, int cov, float doc);
+void printargtbl(FILE *fn, int mapq, char *bam, int tot_var, int som_vars, float vaf, int cov, float doc, int treads);
 char *basename(char const *path);
 char *removeExt(char* myStr);
-
-void usage(){
-    fprintf(stderr, "-------------------------------------------------------------------------\n");
-    fprintf(stderr, "cosmotype: A tool to extract nucleotide/variant allele frequencies of\n");
-    fprintf(stderr, "           known PATHOGENIC and non-SNP COSMIC variants from BAM file\n");
-    fprintf(stderr, "USAGE:\n");
-    fprintf(stderr, "    cosmotype [OPTIONS] <loci> <bam>\n");
-    fprintf(stderr, "    e.g; cosmotype COSMIC_nsyn.tsv Tumor.bam\n");
-    fprintf(stderr, "OPTIONS:\n");
-    fprintf(stderr, "    -f  Indexed fasta file. If provided, extracts and adds reference base to the ouput tsv\n");
-    fprintf(stderr, "    -m  Mapping quality threshold. Default 10\n");
-    fprintf(stderr, "    -v  VAF threshold. Default 0.05\n");
-    fprintf(stderr, "    -d  Depth of coverage threshold. Default 30\n");
-    fprintf(stderr, "    -o  Output file basename. Default parses from basename of BAM file\n");
-    fprintf(stderr, "ARGS:\n");
-    fprintf(stderr, "    <loci>   COSMIC variant file\n");
-    fprintf(stderr, "    <bam>    Indexed BAM file\n");
-    fprintf(stderr, "OUPUT:\n");
-    fprintf(stderr, "    <foo>.html   A browsable html report with COSMIC variants > VAF threshold\n");
-    fprintf(stderr, "    <foo>.tsv    TSV file with nucletide counts and VAF for all COSMIC variants\n");
-    fprintf(stderr, "\nDETAILS:\n");
-    fprintf(stderr, "<loci> is a tsv file with 8 columns parsed from COSMIC database. Ex. row:\n");
-    fprintf(stderr, "Positions are in one-based coordinate systems. Example rows:\n");
-    fprintf(stderr, "1	115258747	C	T	NRAS	Missense	p.G12D	COSV54736383\n");
-    fprintf(stderr, "1	115258747	C	A	NRAS	Missense	p.G12V	COSV54736974\n");
-    fprintf(stderr, "-------------------------------------------------------------------------\n");
-}
+void usage();
 
 int main (int argc, char **argv){
-  int m = 10;
+  uint32_t q = 10;
   int d = 30;
+  int t = 4;
   char *fafile = NULL;
   char *op = NULL;
   int c;
   char *bedfile = NULL;
   char *bam = NULL;
   float v = 0.05;
+  uint16_t F = 1024;
 
   int vars_gt = 0; //No. of BED entries
   int som_vars = 0; //vars with somatic evidance
@@ -62,11 +38,11 @@ int main (int argc, char **argv){
   hts_verbose = 0; //suppresses htslib warnings
 
   //Parse cl args
-  while ((c = getopt (argc, argv, "m:f:d:v:o:")) != -1){
+  while ((c = getopt (argc, argv, "m:f:F:t:d:v:o:")) != -1){
       switch (c)
       {
       case 'm':
-        m = atoi(optarg);
+        q = atoi(optarg);
         break;
       case 'f':
         fafile = optarg;
@@ -79,6 +55,10 @@ int main (int argc, char **argv){
         break;
       case 'v':
         v = atof(optarg);
+      case 'F':
+        F = atoi(optarg);
+      case 't':
+        t = atoi(optarg);
         break;
       case '?':
         if (optopt == 'm'){
@@ -87,6 +67,10 @@ int main (int argc, char **argv){
         }
         if (optopt == 'v'){
             fprintf (stderr, "VAF must be provided when -%c is specified.\n", optopt);
+            usage();
+        }
+        if (optopt == 'F'){
+            fprintf (stderr, "FLAG must be provided when -%c is specified.\n", optopt);
             usage();
         }
           
@@ -128,7 +112,6 @@ int main (int argc, char **argv){
     char *bn = basename(bam); //get basename of the file
     char *bnn = removeExt(bn); //remove extension from the basename
     if(op == NULL){
-        
         strcpy(html_file, bnn);
         strcat(html_file, ".html");
         strcpy(tsv_file, bnn);
@@ -169,10 +152,12 @@ int main (int argc, char **argv){
     fprintf(stderr, "Input BAM file           :  %s\n", bam);
     fprintf(stderr, "COSMIC variants          :  %s\n", bedfile);
     fprintf(stderr, "VAF filter               :  %.2f\n", v);
-    fprintf(stderr, "MAPQ filter              :  %d\n", m);
+    fprintf(stderr, "min reads for t_allele   :  %d\n", t);
+    fprintf(stderr, "MAPQ filter              :  %d\n", q);
+    fprintf(stderr, "FLAG filter              :  %d\n", F);
     fprintf(stderr, "Coverage filter          :  %d\n", d);
+    fprintf(stderr, "HTSlib version           :  %s\n", hts_version());
     
-
     //For every loci in the BED file
     while(fgets(buff,1000,bed_fp) != NULL){
         //pb_len = pb_len +1;
@@ -232,13 +217,17 @@ int main (int argc, char **argv){
             //char *chr = bamHdr->target_name[aln->core.tid] ; //contig name (chromosome)
             uint32_t len = aln->core.l_qseq; //length of the read.
             uint32_t* cig = bam_get_cigar(aln);
-                
-            uint8_t *q = bam_get_seq(aln); //quality string
-            uint32_t q2 = aln->core.qual ; //mapping quality
+            //uint16_t samflag = aln->core.flag; // flag
+            //uint32_t q2 = aln->core.qual ; //mapping quality    
+            uint8_t *qs = bam_get_seq(aln); //quality string
+            
 
+            //MAPQ and FLAG filter
+            if(aln->core.qual <= q){
+                break;
+            }
 
-            //MAPQ filter
-            if(q2 <= m){
+            if(aln->core.qual >= F){
                 break;
             }
             
@@ -250,7 +239,7 @@ int main (int argc, char **argv){
             char *qseq = (char *)malloc(len);
             int i = 0;
             for(i=0; i< len ; i++){
-                qseq[i] = seq_nt16_str[bam_seqi(q,i)]; 
+                qseq[i] = seq_nt16_str[bam_seqi(qs,i)]; 
             }
             
             //target position on the read
@@ -314,13 +303,26 @@ int main (int argc, char **argv){
             free(qseq);
         }
 
+        int pass_treads = 1; //Tumor supporting reads
         if(strcmp(alt, "A") == 0){
+            if(nt[0] < t){
+                pass_treads = 0;
+            }
             vaf = nt[0]/tot_reads;
         }else if(strcmp(alt, "T") == 0){
+            if(nt[1] < t){
+                pass_treads = 0;
+            }
             vaf = nt[1]/tot_reads;
         }else if(strcmp(alt, "G") == 0){
+            if(nt[2] < t){
+                pass_treads = 0;
+            }
             vaf = nt[2]/tot_reads;
         }else if(strcmp(alt, "C") == 0){
+            if(nt[3] < t){
+                pass_treads = 0;
+            }
             vaf = nt[3]/tot_reads;
         }else{
             vaf = -1;
@@ -333,7 +335,7 @@ int main (int argc, char **argv){
         //wite nt counts as table row
         if(!isnan(vaf)){
             //fprintf(stderr, "%s\t%s\t%.3f\n", ref, alt, vaf);
-            if(vaf > v & tot_reads > d){
+            if(vaf > v && tot_reads > d && pass_treads == 1){
                 som_vars = som_vars + 1;
                 printrow(html_fp, chrom, start, ref, alt, gene, vc, pc, cosid, vaf, nt);
             }
@@ -342,7 +344,7 @@ int main (int argc, char **argv){
     
     mean_doc = mean_doc/vars_gt;
     //Close all open connections and destroy destroy objects    
-    printargtbl(html_fp, m, bam, vars_gt, som_vars, v, d, mean_doc);
+    printargtbl(html_fp, q, bam, vars_gt, som_vars, v, d, mean_doc, t);
     bam_destroy1(aln);
     bam_hdr_destroy(bamHdr);
     sam_close(fp_in);
@@ -368,12 +370,12 @@ int main (int argc, char **argv){
 void is_bam(char *fname){
     int l = strlen(fname);
     if (l>=4 && strcasecmp(fname+l-4, ".bam") != 0){
-        fprintf(stderr, "%s is not a BAM file!\n", fname);
         usage();
+        fprintf(stderr, "%s is not a BAM file!\n", fname);
         exit(0);
     }else if(l<4){
-        usage();
         fprintf(stderr, "%s is not a BAM file!\n", fname);
+        usage();
         exit(0);
     }
 }
@@ -408,7 +410,7 @@ void printhead(FILE *fn, char *bam_fn){
     fprintf(fn, "<head>\n");
         fprintf(fn, "<meta charset=\"UTF-8\">\n");
         fprintf(fn, "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n");
-        fprintf(fn , "<title>%s COSMIC genotypes</title>\n", bam_fn);
+        fprintf(fn , "<title>%s | COSMIC variants</title>\n", bam_fn);
         fprintf(fn, "<link rel=\"stylesheet\" href=\"https://cdn.datatables.net/1.10.22/css/jquery.dataTables.min.css\">\n");
         fprintf(fn, "<script src=\"https://code.jquery.com/jquery-3.5.1.js\"></script>\n");
         fprintf(fn, "<script src=\"https://cdn.datatables.net/1.10.22/js/jquery.dataTables.min.js\"></script>\n");
@@ -438,7 +440,7 @@ void printhead(FILE *fn, char *bam_fn){
 }
 
 
-void printargtbl(FILE *fn, int mapq, char *bam, int tot_var, int som_vars, float vaf, int cov, float doc){
+void printargtbl(FILE *fn, int mapq, char *bam, int tot_var, int som_vars, float vaf, int cov, float doc, int treads){
     
     time_t t = time(NULL);
     struct tm cutime = *localtime(&t);
@@ -448,12 +450,13 @@ void printargtbl(FILE *fn, int mapq, char *bam, int tot_var, int som_vars, float
     fprintf(fn, "<table class=\"details\">\n");
     fprintf(fn, "<tr><td style=\"font-weight:bold\">Date</td><td>%d-%02d-%02d %02d:%02d:%02d</td></tn>", cutime.tm_year + 1900, cutime.tm_mon + 1, cutime.tm_mday, cutime.tm_hour, cutime.tm_min, cutime.tm_sec);
     fprintf(fn, "<tr><td style=\"font-weight:bold\">BAM</td><td>%s</td></tn>", bam);
-    fprintf(fn, "<tr><td style=\"font-weight:bold\">MAPQ filter</td><td>%d</td></tn>", mapq);
-    fprintf(fn, "<tr><td style=\"font-weight:bold\">VAF filter</td><td>%.2f</td></tn>", vaf);
-    fprintf(fn, "<tr><td style=\"font-weight:bold\">Coverage filter</td><td>%d</td></tn>", cov);
     fprintf(fn, "<tr><td style=\"font-weight:bold\">COSMIC variants queried</td><td>%d</td></tn>", tot_var);
     fprintf(fn, "<tr><td style=\"font-weight:bold\">COSMIC variants with somatic evidance</td><td>%d [VAF > %.2f]</td></tn>", som_vars, vaf);
     fprintf(fn, "<tr><td style=\"font-weight:bold\">Avg. depth of coverage</td><td>%.2f</td></tn>", doc);
+    fprintf(fn, "<tr><td style=\"font-weight:bold\">MAPQ filter</td><td>%d</td></tn>", mapq);
+    fprintf(fn, "<tr><td style=\"font-weight:bold\">Coverage filter</td><td>%d</td></tn>", cov);
+    fprintf(fn, "<tr><td style=\"font-weight:bold\">VAF filter</td><td>%.2f</td></tn>", vaf);
+    fprintf(fn, "<tr><td style=\"font-weight:bold\">Min. number of reads supporting tumor allele </td><td>%d</td></tn>", treads);
     fprintf(fn, "</table>\n");
     fprintf(fn, "</tbody>\n");
     fprintf(fn, "</body>\n");
@@ -464,4 +467,33 @@ void printargtbl(FILE *fn, int mapq, char *bam, int tot_var, int som_vars, float
 void printrow(FILE *fn,  char *chrom, char *start, char *ref, char *alt, char *gene, char *vc, char *pc, char *cosid, float vaf, float counts[]){
     fprintf(fn, "<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td><a target=\"_blank\" href=\"https://cancer.sanger.ac.uk/cosmic/gene/analysis?ln=%s#variants\"> %s</a></td><td>%s</td><td>%s</td><td>%s</td><td>%.3f</td><td>%.f</td><td>%.f</td><td>%.f</td><td>%.f</td><td>%.f</td><td>%.f</td></tr>\n", 
         chrom, start, ref, alt, gene, gene, vc, pc, cosid, vaf, counts[0], counts[1], counts[2], counts[3], counts[4], counts[5]);
+}
+
+void usage(){
+    fprintf(stderr, "-------------------------------------------------------------------------\n");
+    fprintf(stderr, "cosmotype: A tool to extract nucleotide/variant allele frequencies of\n");
+    fprintf(stderr, "           known PATHOGENIC and non-SNP COSMIC variants from BAM file\n");
+    fprintf(stderr, "USAGE:\n");
+    fprintf(stderr, "    cosmotype [OPTIONS] <loci> <bam>\n");
+    fprintf(stderr, "    e.g; cosmotype COSMIC_nsyn.tsv Tumor.bam\n");
+    fprintf(stderr, "OPTIONS:\n");
+    fprintf(stderr, "    -f  Indexed fasta file. If provided, extracts and adds reference base to the ouput tsv\n");
+    fprintf(stderr, "    -q  Mapping quality threshold. Default 10 [Read filter]\n");
+    fprintf(stderr, "    -F  Exclude reads with FLAGS >= INT. Default 1024 (i.e, read is PCR or optical duplicate) [Read filter]\n");
+    fprintf(stderr, "    -v  VAF threshold. Default 0.05 [Variant filter]\n");
+    fprintf(stderr, "    -d  Depth of coverage threshold. Default 30 [Variant filter]\n");
+    fprintf(stderr, "    -t  Min. number of reads supporting tumor allele . Default 4 [Variant filter]\n");
+    fprintf(stderr, "    -o  Output file basename. Default parses from basename of BAM file\n");
+    fprintf(stderr, "ARGS:\n");
+    fprintf(stderr, "    <loci>   COSMIC variant file\n");
+    fprintf(stderr, "    <bam>    Indexed BAM file\n");
+    fprintf(stderr, "OUPUT:\n");
+    fprintf(stderr, "    <output>.html   A browsable html report with COSMIC variants post variant filter\n");
+    fprintf(stderr, "    <output>.tsv    TSV file with nucletide counts and VAF for all COSMIC variants\n");
+    fprintf(stderr, "\nDETAILS:\n");
+    fprintf(stderr, "<loci> is a tsv file with 8 columns parsed from COSMIC database. Ex. row:\n");
+    fprintf(stderr, "Positions are in one-based coordinate systems. Example rows:\n");
+    fprintf(stderr, "1	115258747	C	T	NRAS	Missense	p.G12D	COSV54736383\n");
+    fprintf(stderr, "1	115258747	C	A	NRAS	Missense	p.G12V	COSV54736974\n");
+    fprintf(stderr, "-------------------------------------------------------------------------\n");
 }
