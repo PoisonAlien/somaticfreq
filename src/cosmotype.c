@@ -19,7 +19,7 @@ void usage();
 int main (int argc, char **argv){
   uint32_t q = 10;
   int d = 30;
-  int t = 4;
+  int t = 8;
   char *fafile = NULL;
   char *op = NULL;
   int c;
@@ -31,6 +31,7 @@ int main (int argc, char **argv){
   int vars_gt = 0; //No. of BED entries
   int som_vars = 0; //vars with somatic evidance
   float mean_doc = 0.0; //mean depth of coverage
+  int novaf = 0; //entries for which VAF could not be estimated
 
   //int nrows = 89496; //for progress bar
 
@@ -232,8 +233,8 @@ int main (int argc, char **argv){
             }
             
             tot_reads = tot_reads +1;
-            //char *ins_seq[100] = NULL;
-            //char *del_seq[100] = NULL;
+            //char ins_seq[100];
+            //char del_seq[100];
 
             //get nucleotide id and converts them into IUPAC id.
             char *qseq = (char *)malloc(len);
@@ -259,15 +260,13 @@ int main (int argc, char **argv){
                 }else if(BAM_CIGAR_STR[cop] == 'I'){
                     pos_onread = pos_onread + cl;
                 }else if(BAM_CIGAR_STR[cop] == 'D'){
-                    pos_onread = pos_onread + cl;
+                    pos = pos + cl;
                 }
-                
 
                 if(pos > target_pos){
-                    //printf("%c\n", BAM_CIGAR_STR[cop]);
                     if(BAM_CIGAR_STR[cop] == 'M'){
                         pos_onread = pos_onread - (pos - target_pos);
-                        //printf("%d\t%lld\t%d\t%c\n", pos, aln->core.pos, tar_pos_onread, qseq[pos - target_pos]);
+                        //printf("%d\t%lld\t%d\t%c\n", pos, aln->core.pos, pos_onread, qseq[pos - target_pos]);
                         if(qseq[pos_onread] == 'A'){
                             nt[0] = nt[0] + 1;
                         }else if(qseq[pos_onread] == 'T'){
@@ -283,18 +282,18 @@ int main (int argc, char **argv){
                     if(BAM_CIGAR_STR[cop] == 'I'){
                         nt[4] = nt[4] + 1;
                         // insertion sequence
-                        //for(int i = 0; i < cl; i++){
-                            //printf("%c", qseq[pos_onread+i]);
-                            //strcat(ins_seq, qseq[pos_onread+i]);
-                        //}
+                        // for(int i = 0; i < cl; i++){
+                        //     //printf("%c", qseq[pos_onread+i]);
+                        //     strcat(ins_seq, qseq[pos_onread+i]);
+                        // }
                         break;
                     }else if(BAM_CIGAR_STR[cop] == 'D'){
                         nt[5] = nt[5] + 1;
                         // deletion sequence
-                        //for(int i = 0; i < cl; i++){
-                            //printf("%c", qseq[pos_onread+i]);
-                            //strcat(del_seq, qseq[pos_onread+i]);
-                        //}
+                        // for(int i = 0; i < cl; i++){
+                        //     //printf("%c", qseq[pos_onread+i]);
+                        //     strcat(del_seq, qseq[pos_onread+i]);
+                        // }
                         break;
                     }
                 }                
@@ -304,35 +303,44 @@ int main (int argc, char **argv){
         }
 
         int pass_treads = 1; //Tumor supporting reads
-        if(strcmp(alt, "A") == 0){
-            if(nt[0] < t){
-                pass_treads = 0;
-            }
-            vaf = nt[0]/tot_reads;
-        }else if(strcmp(alt, "T") == 0){
-            if(nt[1] < t){
-                pass_treads = 0;
-            }
-            vaf = nt[1]/tot_reads;
-        }else if(strcmp(alt, "G") == 0){
-            if(nt[2] < t){
-                pass_treads = 0;
-            }
-            vaf = nt[2]/tot_reads;
-        }else if(strcmp(alt, "C") == 0){
-            if(nt[3] < t){
-                pass_treads = 0;
-            }
-            vaf = nt[3]/tot_reads;
+        if(strcmp(vc, "Frame_Shift_Ins") == 0){
+            vaf = nt[4]/tot_reads;
+        }else if(strcmp(vc, "Frame_Shift_Del") == 0){
+            vaf = nt[5]/tot_reads;
         }else{
-            vaf = -1;
+            if(strcmp(alt, "A") == 0 && strcmp(ref, "-") != 0){
+                if(nt[0] < t){
+                    pass_treads = 0;
+                }
+                vaf = nt[0]/tot_reads;
+            }else if(strcmp(alt, "T") == 0 && strcmp(ref, "-") != 0){
+                if(nt[1] < t){
+                    pass_treads = 0;
+                }
+                vaf = nt[1]/tot_reads;
+            }else if(strcmp(alt, "G") == 0 && strcmp(ref, "-") != 0){
+                if(nt[2] < t){
+                    pass_treads = 0;
+                }
+                vaf = nt[2]/tot_reads;
+            }else if(strcmp(alt, "C") == 0 && strcmp(ref, "-") != 0){
+                if(nt[3] < t){
+                    pass_treads = 0;
+                }
+                vaf = nt[3]/tot_reads;
+            }else{
+                vaf = -1; 
+                novaf = novaf + 1;
+            }
+
         }
+        
 
         mean_doc = mean_doc + tot_reads;
 
         hts_itr_destroy(samitr);
         fprintf(tsv_fp, "\t%.3f\t%.f\t%.f\t%.f\t%.f\t%.f\t%.f\n", vaf, nt[0], nt[1], nt[2], nt[3], nt[4], nt[5]);
-        //wite nt counts as table row
+        //write nt counts as table row
         if(!isnan(vaf)){
             //fprintf(stderr, "%s\t%s\t%.3f\n", ref, alt, vaf);
             if(vaf > v && tot_reads > d && pass_treads == 1){
@@ -363,6 +371,10 @@ int main (int argc, char **argv){
     fprintf(stderr, "Avg. depth of coverage   :  %.2f\n", mean_doc);
     fprintf(stderr, "Output html report       :  %s\n", html_file);
     fprintf(stderr, "Output TSV file          :  %s\n", tsv_file);
+
+    if(novaf > 0){
+        fprintf(stderr, "Could not estimate VAF for %d variants. VAF has been set to -1 in %s\n.Manually inspect them in IGV.\n", novaf, tsv_file);
+    }
 
     return 0;
 }
@@ -482,7 +494,7 @@ void usage(){
     fprintf(stderr, "    -F  Exclude reads with FLAGS >= INT. Default 1024 (i.e, read is PCR or optical duplicate) [Read filter]\n");
     fprintf(stderr, "    -v  VAF threshold. Default 0.05 [Variant filter]\n");
     fprintf(stderr, "    -d  Depth of coverage threshold. Default 30 [Variant filter]\n");
-    fprintf(stderr, "    -t  Min. number of reads supporting tumor allele . Default 4 [Variant filter]\n");
+    fprintf(stderr, "    -t  Min. number of reads supporting tumor allele . Default 8 [Variant filter]\n");
     fprintf(stderr, "    -o  Output file basename. Default parses from basename of BAM file\n");
     fprintf(stderr, "ARGS:\n");
     fprintf(stderr, "    <loci>   COSMIC variant file\n");

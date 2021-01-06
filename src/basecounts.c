@@ -136,7 +136,7 @@ void extbases(char *region, int32_t target_pos, char *bam, char *norm, FILE *htm
                 }else if(BAM_CIGAR_STR[cop] == 'I'){
                     pos_onread = pos_onread + cl;
                 }else if(BAM_CIGAR_STR[cop] == 'D'){
-                    pos_onread = pos_onread + cl;
+                    pos = pos + cl;
                 }
                 //printf("%c\t", BAM_CIGAR_STR[cop]);
                 
