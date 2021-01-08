@@ -1,5 +1,5 @@
 CC ?= gcc
 CFLAGS ?= -Wall -g -O3 -pthread
 
-cosmotype: src/cosmotype.c
-		$(CC) $(CFLAGS) src/cosmotype.c -lhts -o cosmotype 
+somaticfreq: src/somaticfreq.c
+		$(CC) $(CFLAGS) src/somaticfreq.c -lhts -o somaticfreq 

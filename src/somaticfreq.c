@@ -14,6 +14,7 @@ void printrow(FILE *fn,  char *chrom, char *start, char *ref, char *alt, char *g
 void printargtbl(FILE *fn, int mapq, char *bam, int tot_var, int som_vars, float vaf, int cov, float doc, int treads);
 char *basename(char const *path);
 char *removeExt(char* myStr);
+
 void usage();
 
 int main (int argc, char **argv){
@@ -27,6 +28,7 @@ int main (int argc, char **argv){
   char *bam = NULL;
   float v = 0.05;
   uint16_t F = 1024;
+  int bmode = 0;
 
   int vars_gt = 0; //No. of BED entries
   int som_vars = 0; //vars with somatic evidance
@@ -44,6 +46,9 @@ int main (int argc, char **argv){
       {
       case 'm':
         q = atoi(optarg);
+        break;
+      case 'b':
+        bmode = atoi(optarg);
         break;
       case 'f':
         fafile = optarg;
@@ -138,7 +143,7 @@ int main (int argc, char **argv){
     //Open TSV report file and print HTML header
     FILE *tsv_fp;
     tsv_fp = fopen(tsv_file, "w" );
-    fprintf(tsv_fp, "loci\tfa_ref\tCOSMIC_nt_change\tHugo_Symbol\tVariant_Classification\tHGVSp\tCOSMIC_ID\tVAF\tA\tT\tG\tC\tIns\tDel\n");
+    fprintf(tsv_fp, "loci\tfa_ref\tNT_change\tHugo_Symbol\tVariant_Classification\tAA_change\tMeta\tVAF\tA\tT\tG\tC\tIns\tDel\n");
 
     //fasta file
     char *seq;
@@ -151,7 +156,7 @@ int main (int argc, char **argv){
     bam1_t *aln = bam_init1(); //initialize an alignment
 
     fprintf(stderr, "Input BAM file           :  %s\n", bam);
-    fprintf(stderr, "COSMIC variants          :  %s\n", bedfile);
+    fprintf(stderr, "Variants                 :  %s\n", bedfile);
     fprintf(stderr, "VAF filter               :  %.2f\n", v);
     fprintf(stderr, "min reads for t_allele   :  %d\n", t);
     fprintf(stderr, "MAPQ filter              :  %d\n", q);
@@ -303,9 +308,15 @@ int main (int argc, char **argv){
         }
 
         int pass_treads = 1; //Tumor supporting reads
-        if(strcmp(vc, "Frame_Shift_Ins") == 0){
+        if(strcmp(vc, "INS") == 0){
+            if(nt[4] < t){
+                    pass_treads = 0;
+                }
             vaf = nt[4]/tot_reads;
-        }else if(strcmp(vc, "Frame_Shift_Del") == 0){
+        }else if(strcmp(vc, "DEL") == 0){
+            if(nt[5] < t){
+                    pass_treads = 0;
+                }
             vaf = nt[5]/tot_reads;
         }else{
             if(strcmp(alt, "A") == 0 && strcmp(ref, "-") != 0){
@@ -373,7 +384,7 @@ int main (int argc, char **argv){
     fprintf(stderr, "Output TSV file          :  %s\n", tsv_file);
 
     if(novaf > 0){
-        fprintf(stderr, "Could not estimate VAF for %d variants. VAF has been set to -1 in %s\n.Manually inspect them in IGV.\n", novaf, tsv_file);
+        fprintf(stderr, "Could not estimate VAF for %d variants. VAF has been set to -1 in %s.\nManually inspect them in IGV.\n", novaf, tsv_file);
     }
 
     return 0;
@@ -445,9 +456,9 @@ void printhead(FILE *fn, char *bam_fn){
         fprintf(fn, "</script>\n");
     fprintf(fn, "</head>\n");
 
-    fprintf(fn, "<h1>COSMIC variants </h1>\n");
+    //fprintf(fn, "<h1>COSMIC variants </h1>\n");
     fprintf(fn, "<table id=\"cosmic\" class=\"display\">\n");
-    fprintf(fn, "<thead><tr id=\"header\"><th>Chr</th><th>Pos</th><th>Ref</th><th>Alt</th><th>Gene</th><th>Type</th><th>HGVSp</th><th>COSMIC ID</th><th>VAF</th><th>A</th><th>T</th><th>G</th><th>C</th><th>Ins</th><th>Del</th></tr></thead>\n");
+    fprintf(fn, "<thead><tr id=\"header\"><th>Chr</th><th>Pos</th><th>Ref</th><th>Alt</th><th>Gene</th><th>Type</th><th>AA change</th><th>Meta</th><th>VAF</th><th>A</th><th>T</th><th>G</th><th>C</th><th>Ins</th><th>Del</th></tr></thead>\n");
     fprintf(fn, "<tbody>\n");
 }
 
@@ -483,11 +494,11 @@ void printrow(FILE *fn,  char *chrom, char *start, char *ref, char *alt, char *g
 
 void usage(){
     fprintf(stderr, "-------------------------------------------------------------------------\n");
-    fprintf(stderr, "cosmotype: A tool to extract nucleotide/variant allele frequencies of\n");
-    fprintf(stderr, "           known PATHOGENIC and non-SNP COSMIC variants from BAM file\n");
+    fprintf(stderr, "somaticfreq: A tool to extract nucleotide counts/variant allele frequencies\n");
+    fprintf(stderr, "             of targeted (somatic) variants from BAM file\n");
     fprintf(stderr, "USAGE:\n");
-    fprintf(stderr, "    cosmotype [OPTIONS] <loci> <bam>\n");
-    fprintf(stderr, "    e.g; cosmotype COSMIC_nsyn.tsv Tumor.bam\n");
+    fprintf(stderr, "    somaticfreq [OPTIONS] <loci> <bam>\n");
+    fprintf(stderr, "    e.g; somaticfreq cancer_hotspots_hg19.tsv Tumor.bam\n");
     fprintf(stderr, "OPTIONS:\n");
     fprintf(stderr, "    -f  Indexed fasta file. If provided, extracts and adds reference base to the ouput tsv\n");
     fprintf(stderr, "    -q  Mapping quality threshold. Default 10 [Read filter]\n");
@@ -497,13 +508,13 @@ void usage(){
     fprintf(stderr, "    -t  Min. number of reads supporting tumor allele . Default 8 [Variant filter]\n");
     fprintf(stderr, "    -o  Output file basename. Default parses from basename of BAM file\n");
     fprintf(stderr, "ARGS:\n");
-    fprintf(stderr, "    <loci>   COSMIC variant file\n");
+    fprintf(stderr, "    <loci>   variant file\n");
     fprintf(stderr, "    <bam>    Indexed BAM file\n");
     fprintf(stderr, "OUPUT:\n");
-    fprintf(stderr, "    <output>.html   A browsable html report with COSMIC variants post variant filter\n");
-    fprintf(stderr, "    <output>.tsv    TSV file with nucletide counts and VAF for all COSMIC variants\n");
+    fprintf(stderr, "    <output>.html   A browsable html report of variants post filtering\n");
+    fprintf(stderr, "    <output>.tsv    TSV file with nucletide counts and VAF for all variants\n");
     fprintf(stderr, "\nDETAILS:\n");
-    fprintf(stderr, "<loci> is a tsv file with 8 columns parsed from COSMIC database. Ex. row:\n");
+    fprintf(stderr, "<loci> is a tsv file with 8 columns of targeted variants of interest. Ex. row:\n");
     fprintf(stderr, "Positions are in one-based coordinate systems. Example rows:\n");
     fprintf(stderr, "1	115258747	C	T	NRAS	Missense	p.G12D	COSV54736383\n");
     fprintf(stderr, "1	115258747	C	A	NRAS	Missense	p.G12V	COSV54736974\n");
