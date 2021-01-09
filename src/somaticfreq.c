@@ -27,9 +27,9 @@ int main (int argc, char **argv){
   char *bedfile = NULL;
   char *bam = NULL;
   float v = 0.05;
-  uint16_t F = 1024;
-  int bmode = 0;
+  //int bmode = 0;
 
+  uint16_t F = 1024; //BAM default FLAG
   int vars_gt = 0; //No. of BED entries
   int som_vars = 0; //vars with somatic evidance
   float mean_doc = 0.0; //mean depth of coverage
@@ -46,9 +46,6 @@ int main (int argc, char **argv){
       {
       case 'm':
         q = atoi(optarg);
-        break;
-      case 'b':
-        bmode = atoi(optarg);
         break;
       case 'f':
         fafile = optarg;
@@ -163,6 +160,8 @@ int main (int argc, char **argv){
     fprintf(stderr, "FLAG filter              :  %d\n", F);
     fprintf(stderr, "Coverage filter          :  %d\n", d);
     fprintf(stderr, "HTSlib version           :  %s\n", hts_version());
+
+    //printargtbl(html_fp, q, bam, vars_gt, som_vars, v, d, mean_doc, t);
     
     //For every loci in the BED file
     while(fgets(buff,1000,bed_fp) != NULL){
@@ -363,7 +362,7 @@ int main (int argc, char **argv){
     
     mean_doc = mean_doc/vars_gt;
     //Close all open connections and destroy destroy objects    
-    printargtbl(html_fp, q, bam, vars_gt, som_vars, v, d, mean_doc, t);
+    printargtbl(html_fp, q, bn, vars_gt, som_vars, v, d, mean_doc, t);
     bam_destroy1(aln);
     bam_hdr_destroy(bamHdr);
     sam_close(fp_in);
@@ -456,25 +455,28 @@ void printhead(FILE *fn, char *bam_fn){
         fprintf(fn, "</script>\n");
     fprintf(fn, "</head>\n");
 
-    //fprintf(fn, "<h1>COSMIC variants </h1>\n");
+
+    fprintf(fn, "<h2>Filtered variants </h2>\n");
+    fprintf(fn, "<p style=\"margin-top:2.5em\"> \n</p>\n");
+    fprintf(fn, "<p style=\"margin-top:2.5em\"> \n</p>\n");
+    fprintf(fn, "<p style=\"margin-top:2.5em\"> \n</p>\n");
+    
     fprintf(fn, "<table id=\"cosmic\" class=\"display\">\n");
     fprintf(fn, "<thead><tr id=\"header\"><th>Chr</th><th>Pos</th><th>Ref</th><th>Alt</th><th>Gene</th><th>Type</th><th>AA change</th><th>Meta</th><th>VAF</th><th>A</th><th>T</th><th>G</th><th>C</th><th>Ins</th><th>Del</th></tr></thead>\n");
     fprintf(fn, "<tbody>\n");
 }
 
-
 void printargtbl(FILE *fn, int mapq, char *bam, int tot_var, int som_vars, float vaf, int cov, float doc, int treads){
-    
+
     time_t t = time(NULL);
     struct tm cutime = *localtime(&t);
-
     fprintf(fn, "</table>\n"); //end previous table before printing summary
     fprintf(fn, "<h3 >Summary </h3>");
     fprintf(fn, "<table class=\"details\">\n");
     fprintf(fn, "<tr><td style=\"font-weight:bold\">Date</td><td>%d-%02d-%02d %02d:%02d:%02d</td></tn>", cutime.tm_year + 1900, cutime.tm_mon + 1, cutime.tm_mday, cutime.tm_hour, cutime.tm_min, cutime.tm_sec);
     fprintf(fn, "<tr><td style=\"font-weight:bold\">BAM</td><td>%s</td></tn>", bam);
-    fprintf(fn, "<tr><td style=\"font-weight:bold\">COSMIC variants queried</td><td>%d</td></tn>", tot_var);
-    fprintf(fn, "<tr><td style=\"font-weight:bold\">COSMIC variants with somatic evidance</td><td>%d [VAF > %.2f]</td></tn>", som_vars, vaf);
+    fprintf(fn, "<tr><td style=\"font-weight:bold\">Variants queried</td><td>%d</td></tn>", tot_var);
+    fprintf(fn, "<tr><td style=\"font-weight:bold\">Variants with somatic evidance</td><td>%d [VAF > %.2f]</td></tn>", som_vars, vaf);
     fprintf(fn, "<tr><td style=\"font-weight:bold\">Avg. depth of coverage</td><td>%.2f</td></tn>", doc);
     fprintf(fn, "<tr><td style=\"font-weight:bold\">MAPQ filter</td><td>%d</td></tn>", mapq);
     fprintf(fn, "<tr><td style=\"font-weight:bold\">Coverage filter</td><td>%d</td></tn>", cov);
