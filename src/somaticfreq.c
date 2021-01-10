@@ -503,7 +503,7 @@ void usage(){
     fprintf(stderr, "    e.g; somaticfreq cancer_hotspots_hg19.tsv Tumor.bam\n");
     fprintf(stderr, "OPTIONS:\n");
     fprintf(stderr, "    -f  Indexed fasta file. If provided, extracts and adds reference base to the ouput tsv\n");
-    fprintf(stderr, "    -q  Mapping quality threshold. Default 10 [Read filter]\n");
+    fprintf(stderr, "    -q  Min. mapping quality threshold. Default 10 [Read filter]\n");
     fprintf(stderr, "    -F  Exclude reads with FLAGS >= INT. Default 1024 (i.e, read is PCR or optical duplicate) [Read filter]\n");
     fprintf(stderr, "    -v  VAF threshold. Default 0.05 [Variant filter]\n");
     fprintf(stderr, "    -d  Depth of coverage threshold. Default 30 [Variant filter]\n");
