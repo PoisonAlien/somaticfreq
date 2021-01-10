@@ -16,10 +16,12 @@ void printfooter(FILE *fn);
 char *basename(char const *path);
 char *removeExt(char* myStr);
 
+char *VERSION = "0.1.0";
+
 void usage();
 
 int main (int argc, char **argv){
-  uint32_t q = 10;
+  
   int d = 30;
   int t = 8;
   char *fafile = NULL;
@@ -28,24 +30,22 @@ int main (int argc, char **argv){
   char *bedfile = NULL;
   char *bam = NULL;
   float v = 0.05;
-  //int bmode = 0;
 
+  uint32_t q = 10; //BAM default MAPQ
   uint16_t F = 1024; //BAM default FLAG
   int vars_gt = 0; //No. of BED entries
   int som_vars = 0; //vars with somatic evidance
   float mean_doc = 0.0; //mean depth of coverage
   int novaf = 0; //entries for which VAF could not be estimated
 
-  //int nrows = 89496; //for progress bar
-
   opterr = 0;
   hts_verbose = 0; //suppresses htslib warnings
 
   //Parse cl args
-  while ((c = getopt (argc, argv, "m:f:F:t:d:v:o:")) != -1){
+  while ((c = getopt (argc, argv, "q:f:F:t:d:v:o:")) != -1){
       switch (c)
       {
-      case 'm':
+      case 'q':
         q = atoi(optarg);
         break;
       case 'f':
@@ -59,8 +59,10 @@ int main (int argc, char **argv){
         break;
       case 'v':
         v = atof(optarg);
+        break;
       case 'F':
         F = atoi(optarg);
+        break;
       case 't':
         t = atoi(optarg);
         break;
@@ -131,7 +133,6 @@ int main (int argc, char **argv){
     FILE *bed_fp;
     bed_fp = fopen(bedfile, "r");
     char buff[1000];
-    //char *fract = "true";
 
     //Open HTML report file and print HTML header
     FILE *html_fp;
@@ -155,18 +156,16 @@ int main (int argc, char **argv){
 
     fprintf(stderr, "Input BAM file           :  %s\n", bam);
     fprintf(stderr, "Variants                 :  %s\n", bedfile);
-    fprintf(stderr, "VAF filter               :  %.2f\n", v);
+    fprintf(stderr, "VAF filter               :  %.3f\n", v);
     fprintf(stderr, "min reads for t_allele   :  %d\n", t);
     fprintf(stderr, "MAPQ filter              :  %d\n", q);
     fprintf(stderr, "FLAG filter              :  %d\n", F);
     fprintf(stderr, "Coverage filter          :  %d\n", d);
-    fprintf(stderr, "HTSlib version           :  %s\n", hts_version());
-
-    //printargtbl(html_fp, q, bam, vars_gt, som_vars, v, d, mean_doc, t);
+    fprintf(stderr, "HTSlib version           :  %s\n\n", hts_version());
     
     //For every loci in the BED file
     while(fgets(buff,1000,bed_fp) != NULL){
-        //pb_len = pb_len +1;
+        
         //Remove trailing new line chars
         int len = strlen(buff);
         if(buff[len-1] == '\n' ){
@@ -182,11 +181,8 @@ int main (int argc, char **argv){
         char *pc = strtok(NULL,"\t");
         char *cosid = strtok(NULL,"\t");
 
-        //char *end = strtok(NULL,"\t");
         char loci[250] = "";
-
         strcat(loci, chrom); strcat(loci, ":"); strcat(loci, start); strcat(loci, "-"); strcat(loci, start);
-        //printf("%s\n", loci);
         
         //Fetch base at target loci from fasta file 
         if(fa != NULL){
@@ -199,7 +195,6 @@ int main (int argc, char **argv){
         }
         
         int32_t target_pos = atoi(start) -1; //input position are 1 based
-        //extbases(loci, target_pos, bam, fract, html_fp);
         
         //load reads in target loci
         hts_itr_t *samitr = sam_itr_querys(fp_idx, bamHdr, loci);
@@ -207,7 +202,6 @@ int main (int argc, char **argv){
         //Keep track of total reads and nt counts per loci
         int32_t tot_reads = 0;
         float nt[6] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-        //char *gt = "NA";
 
         vars_gt = vars_gt + 1;
 
@@ -219,26 +213,25 @@ int main (int argc, char **argv){
         while(sam_itr_next(fp_in, samitr, aln) > 0){
             
             int32_t pos = aln->core.pos ; //left most position of alignment in zero based coordianate (0-based)
-            //char *chr = bamHdr->target_name[aln->core.tid] ; //contig name (chromosome)
             uint32_t len = aln->core.l_qseq; //length of the read.
             uint32_t* cig = bam_get_cigar(aln);
+            uint8_t *qs = bam_get_seq(aln); //quality string
+            //char *chr = bamHdr->target_name[aln->core.tid] ; //contig name (chromosome)
             //uint16_t samflag = aln->core.flag; // flag
             //uint32_t q2 = aln->core.qual ; //mapping quality    
-            uint8_t *qs = bam_get_seq(aln); //quality string
             
 
             //MAPQ and FLAG filter
             if(aln->core.qual <= q){
-                break;
+                continue;
             }
 
-            if(aln->core.qual >= F){
-                break;
+            if(aln->core.flag >= F){
+                continue;
             }
             
             tot_reads = tot_reads +1;
-            //char ins_seq[100];
-            //char del_seq[100];
+            //char ins_seq[100]; char del_seq[100];
 
             //get nucleotide id and converts them into IUPAC id.
             char *qseq = (char *)malloc(len);
@@ -270,7 +263,6 @@ int main (int argc, char **argv){
                 if(pos > target_pos){
                     if(BAM_CIGAR_STR[cop] == 'M'){
                         pos_onread = pos_onread - (pos - target_pos);
-                        //printf("%d\t%lld\t%d\t%c\n", pos, aln->core.pos, pos_onread, qseq[pos - target_pos]);
                         if(qseq[pos_onread] == 'A'){
                             nt[0] = nt[0] + 1;
                         }else if(qseq[pos_onread] == 'T'){
@@ -287,15 +279,13 @@ int main (int argc, char **argv){
                         nt[4] = nt[4] + 1;
                         // insertion sequence
                         // for(int i = 0; i < cl; i++){
-                        //     //printf("%c", qseq[pos_onread+i]);
-                        //     strcat(ins_seq, qseq[pos_onread+i]);
+                        //     //strcat(ins_seq, &qseq[pos_onread+i]);
                         // }
                         break;
                     }else if(BAM_CIGAR_STR[cop] == 'D'){
                         nt[5] = nt[5] + 1;
                         // deletion sequence
                         // for(int i = 0; i < cl; i++){
-                        //     //printf("%c", qseq[pos_onread+i]);
                         //     strcat(del_seq, qseq[pos_onread+i]);
                         // }
                         break;
@@ -352,10 +342,9 @@ int main (int argc, char **argv){
         hts_itr_destroy(samitr);
         fprintf(tsv_fp, "\t%.3f\t%.f\t%.f\t%.f\t%.f\t%.f\t%.f\n", vaf, nt[0], nt[1], nt[2], nt[3], nt[4], nt[5]);
         //write nt counts as table row
-        fprintf(stderr, "%s\t%s\t%.3f\n", ref, alt, vaf);
         if(!isnan(vaf)){
             //fprintf(stderr, "%s\t%s\t%.3f\n", ref, alt, vaf);
-            if(vaf > v && tot_reads > d && pass_treads == 1){
+            if(vaf >= v && tot_reads > d && pass_treads == 1){
                 som_vars = som_vars + 1;
                 printrow(html_fp, chrom, start, ref, alt, gene, vc, pc, cosid, vaf, nt);
             }
@@ -363,21 +352,21 @@ int main (int argc, char **argv){
     } 
     
     mean_doc = mean_doc/vars_gt;
-    //Close all open connections and destroy destroy objects    
+    //Close all open connections and destroy objects    
     printargtbl(html_fp, q, bn, vars_gt, som_vars, v, d, mean_doc, t);
     printfooter(html_fp);
     bam_destroy1(aln);
     bam_hdr_destroy(bamHdr);
+    fai_destroy(fa);
     sam_close(fp_in);
     fclose(bed_fp);
-    fai_destroy(fa);
     fclose(html_fp);
     fclose(tsv_fp);
 
     free(bn);
     free(bnn);
 
-    fprintf(stderr, "Done!\n");
+    fprintf(stderr, "Done!\n\n");
     fprintf(stderr, "Summary:\n");
     fprintf(stderr, "Total variants processed :  %d\n", vars_gt);
     fprintf(stderr, "Variants > %.2f threshold:  %d\n", v, som_vars);
@@ -505,17 +494,17 @@ void printrow(FILE *fn,  char *chrom, char *start, char *ref, char *alt, char *g
 void printfooter(FILE *fn){
     fprintf(fn, "<p style=\"margin-top:2.5em\"> \n</p>\n");
     fprintf(fn, "<div id=\"footer\">\n");
-    fprintf(fn, "<span style=\"float:left;font-family:'Courier New', Courier, monospace; padding: 5px;\" >Generated by <a href=\"https://github.com/PoisonAlien/somaticfreq\">somaticfreq</a></span>");
+    fprintf(fn, "<span style=\"float:left;font-family:'Courier New', Courier, monospace; padding: 5px;\" >Generated by <a href=\"https://github.com/PoisonAlien/somaticfreq\">somaticfreq</a> %s</span>", VERSION);
     fprintf(fn, "</div>");
 }
 
 void usage(){
     fprintf(stderr, "-------------------------------------------------------------------------\n");
     fprintf(stderr, "somaticfreq: A tool to extract nucleotide counts/variant allele frequencies\n");
-    fprintf(stderr, "             of targeted (somatic) variants from BAM file\n");
+    fprintf(stderr, "             of targeted (somatic) variants from BAM file. Version: %s\n", VERSION);
     fprintf(stderr, "USAGE:\n");
     fprintf(stderr, "    somaticfreq [OPTIONS] <loci> <bam>\n");
-    fprintf(stderr, "    e.g; somaticfreq cancer_hotspots_hg19.tsv Tumor.bam\n");
+    fprintf(stderr, "    e.g; somaticfreq cancer_hotspots_GRCh37.tsv Tumor.bam\n");
     fprintf(stderr, "OPTIONS:\n");
     fprintf(stderr, "    -f  Indexed fasta file. If provided, extracts and adds reference base to the ouput tsv\n");
     fprintf(stderr, "    -q  Min. mapping quality threshold. Default 10 [Read filter]\n");
@@ -530,10 +519,5 @@ void usage(){
     fprintf(stderr, "OUPUT:\n");
     fprintf(stderr, "    <output>.html   A browsable html report of variants post filtering\n");
     fprintf(stderr, "    <output>.tsv    TSV file with nucletide counts and VAF for all variants\n");
-    fprintf(stderr, "\nDETAILS:\n");
-    fprintf(stderr, "<loci> is a tsv file with 8 columns of targeted variants of interest. Ex. row:\n");
-    fprintf(stderr, "Positions are in one-based coordinate systems. Example rows:\n");
-    fprintf(stderr, "1	115258747	C	T	NRAS	Missense	p.G12D	COSV54736383\n");
-    fprintf(stderr, "1	115258747	C	A	NRAS	Missense	p.G12V	COSV54736974\n");
     fprintf(stderr, "-------------------------------------------------------------------------\n");
 }

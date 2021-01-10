@@ -4,12 +4,18 @@
 
 Installation: 
 
-Clone the repository and run `make`
+Clone the repository and run `make`. Requires [htslib](https://github.com/samtools/htslib). 
 
 ```
 git clone https://github.com/PoisonAlien/somaticfreq
 cd somaticfreq
 make
+```
+
+If you have [htslib](https://github.com/samtools/htslib) installed in non standard directory (for ex. from Conda installtion) add the `lib` and `include` directories to make command.
+
+```
+make CFLAGS="-I/home/user/miniconda2/include -L/home/mayakond/miniconda2/lib"
 ```
 
 Usage:
