@@ -1,6 +1,6 @@
 ## somaticfreq: knowledge-based genotyping of targetted somatic variants from the tumor BAM file
 
-`somaticfreq` allows rapid (kind of) genotyping of known somatic variants from BAM files. This facilitates to get a quick overlook of known somatic hot-spots in a matter of minutes, without spending hours on variant calling and annotation. In simple words, it fetches nucleotide frequencies of known somatic hotspots and prioritizes them based on allele frequency. Output includes a browsable/sharable HTML report of candidate variants. See below for data sources. 
+`somaticfreq` allows rapid (kind of) genotyping of known somatic variants from the tumor BAM files. This facilitates to get a quick overlook of known somatic hot-spots in a matter of minutes, without spending hours on variant calling and annotation. In simple words, it fetches nucleotide frequencies of known somatic hotspots and prioritizes them based on allele frequency. Output includes a browsable/sharable HTML report of candidate variants (an [example](https://poisonalien.github.io/STAR_wrapper_script/)). See below for data sources. 
 
 ### Installation: 
 
@@ -25,7 +25,7 @@ make CFLAGS="-I/home/user/miniconda2/include -L/home/user/miniconda2/lib"
 ```
 $ somaticreq
 somaticfreq: A tool to extract nucleotide counts/variant allele frequencies
-             of targeted (somatic) variants from BAM file
+             of targeted (somatic) variants from the BAM file
 USAGE:
     somaticfreq [OPTIONS] <loci> <bam>
     e.g; somaticfreq cancerhotspots_v2_GRCh37.tsv Tumor.bam
