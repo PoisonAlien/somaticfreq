@@ -501,7 +501,7 @@ void printfooter(FILE *fn){
 void usage(){
     fprintf(stderr, "-------------------------------------------------------------------------\n");
     fprintf(stderr, "somaticfreq: A tool to extract nucleotide counts/variant allele frequencies\n");
-    fprintf(stderr, "             of targeted (somatic) variants from BAM file. Version: %s\n", VERSION);
+    fprintf(stderr, "             of targeted (somatic) variants from the BAM file. Version: %s\n", VERSION);
     fprintf(stderr, "USAGE:\n");
     fprintf(stderr, "    somaticfreq [OPTIONS] <loci> <bam>\n");
     fprintf(stderr, "    e.g; somaticfreq cancer_hotspots_GRCh37.tsv Tumor.bam\n");
