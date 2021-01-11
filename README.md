@@ -1,6 +1,6 @@
-## somaticfreq: Knowledge based genotyping of targetted somatic variants from BAM file
+## somaticfreq: knowledge based genotyping of targetted somatic variants from tumor BAM file
 
-`somaticfreq` allows rapid (kind of) genotyping known somatic variants from BAM files. This facilitates to get a quick overlook of known somatic hot-spots in a matter of minutes, without spending hours on variant calling and annotation. In simple words, it fetches nucleotide frequencies of known somatic hotspots and prioritizes based on allele frequency. Output includes a browsable/sharable HTML report of candidate variants. See below for data sources. 
+`somaticfreq` allows rapid genotyping (kind of) known somatic variants from BAM files. This facilitates to get a quick overlook of known somatic hot-spots in a matter of minutes, without spending hours on variant calling and annotation. In simple words, it fetches nucleotide frequencies of known somatic hotspots and prioritizes them based on allele frequency. Output includes a browsable/sharable HTML report of candidate variants. See below for data sources. 
 
 ### Installation: 
 
@@ -53,6 +53,8 @@ $ somaticfreq cancerhotspots_v2_GRCh37.tsv Tumor.bam
 ### Output
 
 Output includes a browsable HTML file with variants passing the VAF/read depth filters and, a TSV file including nucleotide counts of all variants analyzed.
+
+    Example report from a [metastatic brest cancer](https://poisonalien.github.io/STAR_wrapper_script/) sample
 
 ### Data sources: 
 
