@@ -12,12 +12,6 @@ cd somaticfreq
 make
 ```
 
-If you have [htslib](https://github.com/samtools/htslib) installed in a non-standard directory (for ex. from Conda installation) add the `lib` and `include` directories to make the command.
-
-```
-make CFLAGS="-I/home/user/miniconda2/include -L/home/user/miniconda2/lib"
-```
-
 ### Usage:
 
 `somaticfreq` takes a tsv file of known somatic variants and a BAM file as input.
