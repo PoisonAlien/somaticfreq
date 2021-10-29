@@ -8,6 +8,9 @@
 #include <argp.h>
 #include <time.h>
 
+#define PBSTR "||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||"
+#define PBWIDTH 60
+
 void is_bam(char *fname);
 void printhead(FILE *fn, char *bam_fn);
 void printrow(FILE *fn,  char *chrom, char *start, char *ref, char *alt, char *gene, char *vc, char *pc, char *cosid, float vaf, float counts[]);
@@ -15,6 +18,8 @@ void printargtbl(FILE *fn, int mapq, char *bam, int tot_var, int som_vars, float
 void printfooter(FILE *fn);
 char *basename(char const *path);
 char *removeExt(char* myStr);
+int countlines(char *filename);
+void printProgress(double percentage, int done, int tot);
 
 char *VERSION = "0.1.0";
 
@@ -30,10 +35,12 @@ int main (int argc, char **argv){
   char *bedfile = NULL;
   char *bam = NULL;
   float v = 0.05;
+  int nloci = 0;
+
 
   uint32_t q = 10; //BAM default MAPQ
   uint16_t F = 1024; //BAM default FLAG
-  int vars_gt = 0; //No. of BED entries
+  int vars_gt = 1; //No. of BED entries
   int som_vars = 0; //vars with somatic evidance
   float mean_doc = 0.0; //mean depth of coverage
   int novaf = 0; //entries for which VAF could not be estimated
@@ -131,6 +138,7 @@ int main (int argc, char **argv){
 
     //Open bed file
     FILE *bed_fp;
+    nloci = countlines(bedfile);
     bed_fp = fopen(bedfile, "r");
     char buff[1000];
 
@@ -203,11 +211,12 @@ int main (int argc, char **argv){
         int32_t tot_reads = 0;
         float nt[6] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
 
+        printProgress(vars_gt/(double)nloci, vars_gt, nloci);
         vars_gt = vars_gt + 1;
 
-        if(vars_gt % 1000 == 0){
+        /*if(vars_gt % 1000 == 0){
             fprintf(stderr, "Processed %d entries..\n", vars_gt);
-        }
+        }*/
 
         //For every read in the BAM file of target region
         while(sam_itr_next(fp_in, samitr, aln) > 0){
@@ -520,4 +529,33 @@ void usage(){
     fprintf(stderr, "    <output>.html   A browsable html report of variants post filtering\n");
     fprintf(stderr, "    <output>.tsv    TSV file with nucletide counts and VAF for all variants\n");
     fprintf(stderr, "-------------------------------------------------------------------------\n");
+}
+
+int countlines(char *filename){
+  // count the number of lines in the file called filename                                    
+  FILE *fp = fopen(filename,"r");
+  int ch=0;
+  int lines=0;
+
+  if (fp == NULL){
+    return 0;  
+  }
+  
+  while(!feof(fp)){
+  ch = fgetc(fp);
+  if(ch == '\n'){
+    lines++;
+  }
+}
+  fclose(fp);
+  return lines;
+}
+
+// Progress bar modified from: https://stackoverflow.com/a/36315819
+void printProgress(double percentage, int done, int tot) {
+    int val = (int) (percentage * 100);
+    int lpad = (int) (percentage * PBWIDTH);
+    int rpad = PBWIDTH - lpad;
+    fprintf(stderr, "\r%3d%% [%.*s%*s] %d/%d", val, lpad, PBSTR, rpad, "", done, tot);
+    fflush(stdout);
 }
